@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>لوحة تحكم المشرف</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { background-color: #f4f7f6; font-family: 'Cairo', sans-serif; padding: 2rem; }
+    .dashboard { max-width: 1200px; margin: 0 auto; background: #fff; border-radius: 10px; padding: 2rem; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+    .tabs { display: flex; gap: 1rem; margin-bottom: 2rem; border-bottom: 2px solid #eee; padding-bottom: 1rem; }
+    .tab { cursor: pointer; padding: 0.5rem 1rem; font-weight: bold; border-radius: 5px; }
+    .tab.active { background: var(--green-mid); color: white; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1.5rem; }
+    th, td { padding: 1rem; text-align: right; border-bottom: 1px solid #eee; }
+    th { background: #f9fbf9; color: var(--green-dark); }
+    .btn-action { padding: 0.5rem 1rem; background: var(--green-mid); color: white; border-radius: 5px; text-decoration: none; font-size: 0.9rem; border: none; cursor: pointer; }
+    .form-row { margin-bottom: 1rem; }
+    .form-row input, .form-row textarea { width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 5px; }
+  </style>
+</head>
+<body>
+  <div class="dashboard">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <h1>لوحة تحكم المسؤول (Admin)</h1>
+      <button onclick="logout()" class="btn-action" style="background: #e74c3c;">تسجيل الخروج</button>
+    </div>
+    
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('products')">المنتجات</div>
+      <div class="tab" onclick="switchTab('leads')">العملاء المحتملين</div>
+      <div class="tab" onclick="switchTab('cases')">الطلبات (Cases)</div>
+    </div>
+
+    <!-- Products Tab -->
+    <div id="productsTab" class="tab-content active">
+      <h3>إضافة منتج جديد</h3>
+      <form id="productForm" style="max-width: 600px;">
+        <div class="form-row"><input type="text" id="pName" placeholder="اسم المنتج" required></div>
+        <div class="form-row"><textarea id="pDesc" placeholder="الوصف" required></textarea></div>
+        <div class="form-row"><input type="number" id="pPrice" placeholder="السعر الأساسي" required></div>
+        <div class="form-row"><input type="number" id="pDays" placeholder="أيام التوصيل" required></div>
+        <button type="submit" class="btn-action">إضافة</button>
+      </form>
+
+      <table id="productsTable">
+        <thead>
+          <tr>
+            <th>الاسم</th>
+            <th>السعر</th>
+            <th>أيام التوصيل</th>
+            <th>الإجراءات</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- Leads Tab -->
+    <div id="leadsTab" class="tab-content">
+      <table id="leadsTable">
+        <thead>
+          <tr>
+            <th>الاسم</th>
+            <th>البريد</th>
+            <th>العيادة</th>
+            <th>تواصل؟</th>
+            <th>الإجراء</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- Cases Tab -->
+    <div id="casesTab" class="tab-content">
+      <a href="lab-dashboard.html" class="btn-action">الانتقال للوحة المختبر لتغيير حالات الطلبات</a>
+    </div>
+
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = 'login.html';
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      event.target.classList.add('active');
+      document.getElementById(tabId + 'Tab').classList.add('active');
+    }
+
+    // Products
+    async function loadProducts() {
+      const res = await fetch('/api/products');
+      const data = await res.json();
+      const tbody = document.querySelector('#productsTable tbody');
+      tbody.innerHTML = '';
+      if (data.data && data.data.products) {
+        data.data.products.forEach(p => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${p.name}</td>
+            <td>$${p.basePrice}</td>
+            <td>${p.deliveryDays}</td>
+            <td>
+              <button onclick="deleteProduct('${p._id}')" class="btn-action" style="background:#e74c3c;">حذف</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+    }
+
+    document.getElementById('productForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const payload = {
+        name: document.getElementById('pName').value,
+        description: document.getElementById('pDesc').value,
+        basePrice: document.getElementById('pPrice').value,
+        deliveryDays: document.getElementById('pDays').value
+      };
+      const res = await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        alert('تم الإضافة');
+        document.getElementById('productForm').reset();
+        loadProducts();
+      } else {
+        alert('خطأ');
+      }
+    });
+
+    async function deleteProduct(id) {
+      if(confirm('هل أنت متأكد؟')) {
+        await fetch(`/api/products/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+        loadProducts();
+      }
+    }
+
+    // Leads
+    async function loadLeads() {
+      const res = await fetch('/api/leads', { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      const tbody = document.querySelector('#leadsTable tbody');
+      tbody.innerHTML = '';
+      if (data.data && data.data.leads) {
+        data.data.leads.forEach(l => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${l.firstName} ${l.lastName}</td>
+            <td>${l.email}</td>
+            <td>${l.clinicName || '-'}</td>
+            <td>${l.contacted ? 'نعم' : 'لا'}</td>
+            <td>
+              ${!l.contacted ? `<button onclick="markContacted('${l._id}')" class="btn-action">تحديد كمتواصل</button>` : ''}
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+    }
+
+    async function markContacted(id) {
+      await fetch(`/api/leads/${id}/contacted`, { 
+        method: 'PUT', 
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ contacted: true })
+      });
+      loadLeads();
+    }
+
+    function logout() {
+      localStorage.removeItem('token');
+      window.location.href = 'login.html';
+    }
+
+    loadProducts();
+    loadLeads();
+  </script>
+</body>
+</html>

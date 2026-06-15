@@ -1,0 +1,37 @@
+{
+  "name": "website_for_lazward_dental_clinic",
+  "version": "1.0.0",
+  "description": "",
+  "main": "script.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Abood059/Website_for_Lazward_Dental_Clinic.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Abood059/Website_for_Lazward_Dental_Clinic/issues"
+  },
+  "homepage": "https://github.com/Abood059/Website_for_Lazward_Dental_Clinic#readme",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "helmet": "^8.2.0",
+    "joi": "^18.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.7.0",
+    "morgan": "^1.11.0",
+    "multer": "^2.1.1",
+    "nodemailer": "^9.0.0"
+  },
+  "devDependencies": {
+    "eslint": "^10.5.0"
+  }
+}

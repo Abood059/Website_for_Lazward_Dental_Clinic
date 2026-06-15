@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>تفاصيل الطلب</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { background-color: #f4f7f6; font-family: 'Cairo', sans-serif; padding: 2rem; }
+    .container { max-width: 800px; margin: 0 auto; background: #fff; border-radius: 10px; padding: 2rem; }
+    .btn-action { padding: 0.5rem 1rem; background: var(--green-mid); color: white; border-radius: 5px; cursor: pointer; border: none; font-family: inherit;}
+    .details { background: #fafafa; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; line-height: 1.8; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="#" onclick="history.back(); return false;" style="color: var(--green-mid); text-decoration: none;">&larr; العودة</a>
+    <h1 style="margin-top: 1rem;">تفاصيل الطلب <span id="caseIdTitle"></span></h1>
+    
+    <div class="details" id="caseDetails">
+      جاري التحميل...
+    </div>
+
+    <div id="uploadSection" style="display: none; margin-top: 2rem; border-top: 1px solid #eee; padding-top: 1rem;">
+      <h3>رفع الملفات (Draft فقط)</h3>
+      <form id="uploadForm" enctype="multipart/form-data">
+        <input type="file" id="caseFiles" multiple accept=".stl,.ply,.jpg,.jpeg,.png,.pdf" style="margin-bottom: 1rem;" required>
+        <button type="submit" class="btn-action">رفع الملفات</button>
+      </form>
+    </div>
+
+    <div id="submitSection" style="display: none; margin-top: 2rem;">
+      <button id="submitCaseBtn" class="btn-action" style="background: #27ae60;">إرسال الطلب للمراجعة (Submit)</button>
+    </div>
+
+    <div id="approveSection" style="display: none; margin-top: 2rem;">
+      <button id="approveDesignBtn" class="btn-action" style="background: #2980b9;">الموافقة على التصميم</button>
+    </div>
+
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = 'login.html';
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const caseId = urlParams.get('id');
+
+    async function loadCase() {
+      const res = await fetch(`/api/cases/${caseId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const c = data.data.caseOrder;
+        document.getElementById('caseIdTitle').textContent = '#' + c._id.slice(-6);
+        
+        let filesHtml = c.files.map(f => `<a href="${f}" target="_blank">تحميل الملف</a>`).join(' | ');
+
+        document.getElementById('caseDetails').innerHTML = `
+          <strong>العيادة:</strong> ${c.clinicId?.clinicName || ''} <br>
+          <strong>المنتج:</strong> ${c.productId?.name || ''} <br>
+          <strong>الحالة:</strong> ${c.status} <br>
+          <strong>تاريخ الإنشاء:</strong> ${new Date(c.createdAt).toLocaleDateString('ar-EG')} <br>
+          <strong>ملاحظات:</strong> ${c.notes || '-'} <br>
+          <strong>الملفات:</strong> ${filesHtml || 'لا يوجد ملفات'}
+        `;
+
+        if (c.status === 'draft') {
+          document.getElementById('uploadSection').style.display = 'block';
+          if (c.files.length > 0) {
+            document.getElementById('submitSection').style.display = 'block';
+          }
+        } else {
+          document.getElementById('uploadSection').style.display = 'none';
+          document.getElementById('submitSection').style.display = 'none';
+        }
+
+        if (c.status === 'design') {
+          document.getElementById('approveSection').style.display = 'block';
+        } else {
+          document.getElementById('approveSection').style.display = 'none';
+        }
+      }
+    }
+
+    document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const filesInput = document.getElementById('caseFiles');
+      const formData = new FormData();
+      for (const file of filesInput.files) {
+        formData.append('files', file);
+      }
+
+      const res = await fetch(`/api/cases/${caseId}/files`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+
+      if (res.ok) {
+        alert('تم رفع الملفات بنجاح');
+        loadCase();
+      } else {
+        alert('فشل الرفع');
+      }
+    });
+
+    document.getElementById('submitCaseBtn')?.addEventListener('click', async () => {
+      const res = await fetch(`/api/cases/${caseId}/submit`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        alert('تم الإرسال');
+        loadCase();
+      }
+    });
+
+    document.getElementById('approveDesignBtn')?.addEventListener('click', async () => {
+      const res = await fetch(`/api/cases/${caseId}/approve-design`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        alert('تم الموافقة على التصميم');
+        loadCase();
+      }
+    });
+
+    loadCase();
+  </script>
+</body>
+</html>

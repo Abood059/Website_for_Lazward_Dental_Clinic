@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>لوحة تحكم المختبر</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { background-color: #f4f7f6; font-family: 'Cairo', sans-serif; padding: 2rem; }
+    .dashboard { max-width: 1200px; margin: 0 auto; background: #fff; border-radius: 10px; padding: 2rem; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+    table { width: 100%; border-collapse: collapse; margin-top: 1.5rem; }
+    th, td { padding: 1rem; text-align: right; border-bottom: 1px solid #eee; }
+    th { background: #f9fbf9; color: var(--green-dark); }
+    .btn-action { padding: 0.5rem 1rem; background: var(--green-mid); color: white; border-radius: 5px; text-decoration: none; font-size: 0.9rem; border: none; cursor: pointer; }
+    .header-actions { display: flex; justify-content: space-between; align-items: center; }
+  </style>
+</head>
+<body>
+  <div class="dashboard">
+    <div class="header-actions">
+      <h1>لوحة تحكم المختبر (جميع الطلبات)</h1>
+      <button onclick="logout()" class="btn-action" style="background: #e74c3c;">تسجيل الخروج</button>
+    </div>
+    
+    <table id="casesTable">
+      <thead>
+        <tr>
+          <th>رقم الطلب</th>
+          <th>العيادة</th>
+          <th>المنتج</th>
+          <th>الحالة</th>
+          <th>تحديث الحالة</th>
+          <th>الإجراءات</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Data will be loaded here -->
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = 'login.html';
+
+    const statuses = ['review', 'design', 'approved', 'manufacturing', 'shipped', 'delivered'];
+
+    async function loadCases() {
+      const res = await fetch('/api/cases', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      const tbody = document.querySelector('#casesTable tbody');
+      tbody.innerHTML = '';
+      if (data.data && data.data.cases) {
+        data.data.cases.forEach(c => {
+          if (c.status === 'draft') return; // Labtech usually doesn't need to see drafts
+
+          let options = statuses.map(s => `<option value="${s}" ${c.status === s ? 'selected' : ''}>${s}</option>`).join('');
+
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${c._id.slice(-6)}</td>
+            <td>${c.clinicId?.clinicName || 'غير محدد'}</td>
+            <td>${c.productId?.name || 'غير محدد'}</td>
+            <td>${c.status}</td>
+            <td>
+              <select onchange="updateStatus('${c._id}', this.value)" style="padding:0.3rem;">
+                ${options}
+              </select>
+            </td>
+            <td><a href="case-detail.html?id=${c._id}" class="btn-action">التفاصيل</a></td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+    }
+
+    async function updateStatus(id, status) {
+      const res = await fetch(`/api/cases/${id}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status })
+      });
+      if (res.ok) {
+        alert('تم تحديث الحالة');
+        loadCases();
+      } else {
+        alert('حدث خطأ أثناء التحديث');
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem('token');
+      window.location.href = 'login.html';
+    }
+
+    loadCases();
+  </script>
+</body>
+</html>

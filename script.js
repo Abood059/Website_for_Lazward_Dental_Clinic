@@ -66,11 +66,15 @@ document.addEventListener('DOMContentLoaded', () => {
   /* ===== CONTACT FORM ===== */
   const contactForm = document.getElementById('contactForm');
   if (contactForm) {
-    contactForm.addEventListener('submit', e => {
+    contactForm.addEventListener('submit', async e => {
       e.preventDefault();
 
       const firstName = contactForm.querySelector('#firstName').value.trim();
+      const lastName  = contactForm.querySelector('#lastName') ? contactForm.querySelector('#lastName').value.trim() : '';
       const email     = contactForm.querySelector('#email').value.trim();
+      const phone     = contactForm.querySelector('#phone') ? contactForm.querySelector('#phone').value.trim() : '';
+      const clinicName = contactForm.querySelector('#clinicName') ? contactForm.querySelector('#clinicName').value.trim() : '';
+      const roleInClinic = contactForm.querySelector('#role') ? contactForm.querySelector('#role').value.trim() : '';
 
       if (!firstName || !email) {
         showToast('يرجى ملء الاسم الأول والبريد الإلكتروني على الأقل.', 'error');
@@ -82,22 +86,36 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const btn = contactForm.querySelector('.btn-submit');
+      const originalText = btn.textContent;
       btn.textContent = 'جارٍ الإرسال...';
       btn.disabled = true;
 
-      setTimeout(() => {
+      try {
+        const response = await fetch('/api/leads', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ firstName, lastName, email, phone, clinicName, roleInClinic })
+        });
+
+        if (!response.ok) {
+          throw new Error('حدث خطأ أثناء إرسال الطلب');
+        }
+
         showToast('تم إرسال طلبك بنجاح! سنتواصل معك قريباً.', 'success');
         contactForm.reset();
-        btn.textContent = 'ابدأ الآن';
+      } catch (error) {
+        showToast(error.message, 'error');
+      } finally {
+        btn.textContent = originalText;
         btn.disabled = false;
-      }, 1200);
+      }
     });
   }
 
   /* ===== LOGIN FORM ===== */
   const loginForm = document.getElementById('loginForm');
   if (loginForm) {
-    loginForm.addEventListener('submit', e => {
+    loginForm.addEventListener('submit', async e => {
       e.preventDefault();
 
       const email    = loginForm.querySelector('#loginEmail').value.trim();
@@ -113,14 +131,49 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const btn = loginForm.querySelector('.btn-submit');
+      const originalText = btn.textContent;
       btn.textContent = 'جارٍ الدخول...';
       btn.disabled = true;
 
-      setTimeout(() => {
+      try {
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.message || 'فشل تسجيل الدخول');
+        }
+
+        // Store token
+        localStorage.setItem('token', data.token);
+
         showToast('مرحباً بك في لازورد! جارٍ تحميل لوحة التحكم...', 'success');
-        btn.textContent = 'تسجيل الدخول';
+        
+        // Fetch user data to redirect based on role
+        const meResponse = await fetch('/api/auth/me', {
+          headers: { 'Authorization': `Bearer ${data.token}` }
+        });
+        const meData = await meResponse.json();
+        
+        setTimeout(() => {
+          if (meData?.data?.user?.role === 'admin') {
+             window.location.href = 'admin-dashboard.html';
+          } else if (meData?.data?.user?.role === 'labtech') {
+             window.location.href = 'lab-dashboard.html';
+          } else {
+             window.location.href = 'clinic-dashboard.html';
+          }
+        }, 1400);
+
+      } catch (error) {
+        showToast(error.message, 'error');
+        btn.textContent = originalText;
         btn.disabled = false;
-      }, 1400);
+      }
     });
   }
 

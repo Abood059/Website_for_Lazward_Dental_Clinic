@@ -40,6 +40,15 @@ The content is organized as follows:
 </file_summary>
 
 <directory_structure>
+config/
+  auth.config.js
+  db.js
+controllers/
+  auth.controller.js
+  case.controller.js
+  content.controller.js
+  lead.controller.js
+  product.controller.js
 images/
   blog-lab.jpg
   blog-smile.jpg
@@ -56,12 +65,54 @@ images/
   result-2.jpg
   result-3.jpg
   workflow.jpg
+middleware/
+  auth.middleware.js
+  globalErrorHandler.js
+  role.middleware.js
+  upload.middleware.js
+  validation.middleware.js
+models/
+  BlogPost.model.js
+  CaseOrder.model.js
+  Faq.model.js
+  Lead.model.js
+  Product.model.js
+  User.model.js
+routes/
+  auth.routes.js
+  case.routes.js
+  content.routes.js
+  lead.routes.js
+  product.routes.js
+services/
+  auth.service.js
+  case.service.js
+  content.service.js
+  lead.service.js
+  product.service.js
+utils/
+  email.service.js
+validations/
+  auth.validation.js
+  case.validation.js
+  lead.validation.js
+.gitignore
+admin-dashboard.html
+app.js
+case-detail.html
+clinic-dashboard.html
 index.html
+lab-dashboard.html
 lab-services.html
 learn.html
 login.html
+package.json
 pricing.html
+README.md
+register.html
+register.js
 script.js
+server.js
 solutions.html
 style.css
 why-lazord.html
@@ -69,6 +120,2375 @@ why-lazord.html
 
 <files>
 This section contains the contents of the repository's files.
+
+<file path="config/auth.config.js">
+module.exports = {
+  secret: process.env.JWT_SECRET || 'fallback_secret_key',
+  expiresIn: process.env.JWT_EXPIRES_IN || '7d'
+};
+</file>
+
+<file path="config/db.js">
+const mongoose = require('mongoose');
+
+/**
+ * Connects to the MongoDB database.
+ */
+const connectDB = async () => {
+  try {
+    const conn = await mongoose.connect(process.env.MONGO_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log(`MongoDB Connected: ${conn.connection.host}`);
+  } catch (error) {
+    console.error(`Error connecting to MongoDB: ${error.message}`);
+    process.exit(1);
+  }
+};
+
+module.exports = connectDB;
+</file>
+
+<file path="controllers/auth.controller.js">
+const authService = require('../services/auth.service');
+
+exports.register = async (req, res, next) => {
+  try {
+    const token = await authService.register(req.body);
+    res.status(201).json({ status: 'success', token });
+  } catch (error) {
+    if (error.message === 'Email already in use') {
+      return res.status(400).json({ message: error.message });
+    }
+    next(error);
+  }
+};
+
+exports.login = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+    const token = await authService.login(email, password);
+    res.status(200).json({ status: 'success', token });
+  } catch (error) {
+    if (error.message === 'Invalid email or password') {
+      return res.status(401).json({ message: error.message });
+    }
+    next(error);
+  }
+};
+
+exports.logout = async (req, res, next) => {
+  try {
+    res.status(200).json({ status: 'success', message: 'Logged out successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.forgotPassword = async (req, res, next) => {
+  try {
+    const resetUrlBase = `${req.protocol}://${req.get('host')}/reset-password`; // Or your frontend URL
+    await authService.forgotPassword(req.body.email, resetUrlBase);
+    res.status(200).json({ status: 'success', message: 'Token sent to email!' });
+  } catch (error) {
+    if (error.message === 'There is no user with that email address.') {
+      return res.status(404).json({ message: error.message });
+    }
+    next(error);
+  }
+};
+
+exports.resetPassword = async (req, res, next) => {
+  try {
+    const { token, password } = req.body;
+    const jwtToken = await authService.resetPassword(token, password);
+    res.status(200).json({ status: 'success', token: jwtToken });
+  } catch (error) {
+    if (error.message === 'Token is invalid or has expired') {
+      return res.status(400).json({ message: error.message });
+    }
+    next(error);
+  }
+};
+
+exports.getMe = async (req, res, next) => {
+  try {
+    const user = await authService.getUserById(req.user.id);
+    res.status(200).json({ status: 'success', data: { user } });
+  } catch (error) {
+    next(error);
+  }
+};
+</file>
+
+<file path="controllers/case.controller.js">
+const caseService = require('../services/case.service');
+
+exports.createCase = async (req, res, next) => {
+  try {
+    const caseOrder = await caseService.createCase(req.user._id, req.body);
+    res.status(201).json({ status: 'success', data: { caseOrder } });
+  } catch (error) {
+    if (error.message === 'Product not found') {
+      return res.status(404).json({ message: error.message });
+    }
+    next(error);
+  }
+};
+
+exports.getCases = async (req, res, next) => {
+  try {
+    const cases = await caseService.getCases(req.user);
+    res.status(200).json({ status: 'success', data: { cases } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getCaseById = async (req, res, next) => {
+  try {
+    const caseOrder = await caseService.getCaseById(req.params.id, req.user);
+    res.status(200).json({ status: 'success', data: { caseOrder } });
+  } catch (error) {
+    if (['Case not found', 'Not authorized to view this case'].includes(error.message)) {
+      return res.status(404).json({ message: error.message });
+    }
+    next(error);
+  }
+};
+
+exports.updateCase = async (req, res, next) => {
+  try {
+    const caseOrder = await caseService.updateCase(req.params.id, req.user, req.body);
+    res.status(200).json({ status: 'success', data: { caseOrder } });
+  } catch (error) {
+    if (['Case not found', 'Not authorized to update this case', 'Cannot update case unless it is in draft status'].includes(error.message)) {
+      return res.status(400).json({ message: error.message });
+    }
+    next(error);
+  }
+};
+
+exports.uploadFiles = async (req, res, next) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: 'No files uploaded' });
+    }
+
+    // Convert file paths to URLs relative to the uploads folder
+    const fileUrls = req.files.map(file => `/uploads/cases/${req.params.id || 'temp'}/${file.filename}`);
+
+    // If we use temp id, we should handle it properly, but the middleware uses req.params.id.
+    const caseOrder = await caseService.uploadFiles(req.params.id, req.user, fileUrls);
+    res.status(200).json({ status: 'success', data: { caseOrder } });
+  } catch (error) {
+    if (error.message.includes('not found') || error.message.includes('authorized') || error.message.includes('draft status')) {
+      return res.status(400).json({ message: error.message });
+    }
+    next(error);
+  }
+};
+
+exports.updateStatus = async (req, res, next) => {
+  try {
+    const caseOrder = await caseService.updateStatus(req.params.id, req.user, req.body.status);
+    res.status(200).json({ status: 'success', data: { caseOrder } });
+  } catch (error) {
+    if (error.message.includes('not found') || error.message.includes('authorized') || error.message.includes('submit')) {
+      return res.status(400).json({ message: error.message });
+    }
+    next(error);
+  }
+};
+
+exports.submitCase = async (req, res, next) => {
+   try {
+      const caseOrder = await caseService.updateStatus(req.params.id, req.user, 'review');
+      res.status(200).json({ status: 'success', data: { caseOrder } });
+    } catch (error) {
+      if (error.message.includes('not found') || error.message.includes('authorized') || error.message.includes('submit')) {
+        return res.status(400).json({ message: error.message });
+      }
+      next(error);
+    }
+};
+
+exports.approveDesign = async (req, res, next) => {
+  try {
+    const caseOrder = await caseService.approveDesign(req.params.id, req.user);
+    res.status(200).json({ status: 'success', data: { caseOrder } });
+  } catch (error) {
+    if (error.message.includes('not found') || error.message.includes('authorized') || error.message.includes('design status')) {
+      return res.status(400).json({ message: error.message });
+    }
+    next(error);
+  }
+};
+
+exports.deleteCase = async (req, res, next) => {
+  try {
+    await caseService.deleteCase(req.params.id, req.user);
+    res.status(200).json({ status: 'success', message: 'Case deleted successfully' });
+  } catch (error) {
+    if (error.message.includes('not found') || error.message.includes('authorized') || error.message.includes('draft status')) {
+      return res.status(400).json({ message: error.message });
+    }
+    next(error);
+  }
+};
+</file>
+
+<file path="controllers/content.controller.js">
+const contentService = require('../services/content.service');
+
+// Blog Controllers
+exports.getPublishedPosts = async (req, res, next) => {
+  try {
+    const posts = await contentService.getPublishedPosts();
+    res.status(200).json({ status: 'success', data: { posts } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getPostBySlug = async (req, res, next) => {
+  try {
+    const post = await contentService.getPostBySlug(req.params.slug);
+    res.status(200).json({ status: 'success', data: { post } });
+  } catch (error) {
+    if (error.message === 'Post not found') {
+      return res.status(404).json({ message: error.message });
+    }
+    next(error);
+  }
+};
+
+exports.createPost = async (req, res, next) => {
+  try {
+    const post = await contentService.createPost(req.body);
+    res.status(201).json({ status: 'success', data: { post } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.updatePost = async (req, res, next) => {
+  try {
+    const post = await contentService.updatePost(req.params.id, req.body);
+    res.status(200).json({ status: 'success', data: { post } });
+  } catch (error) {
+    if (error.message === 'Post not found') {
+      return res.status(404).json({ message: error.message });
+    }
+    next(error);
+  }
+};
+
+exports.deletePost = async (req, res, next) => {
+  try {
+    await contentService.deletePost(req.params.id);
+    res.status(200).json({ status: 'success', message: 'Post deleted successfully' });
+  } catch (error) {
+    if (error.message === 'Post not found') {
+      return res.status(404).json({ message: error.message });
+    }
+    next(error);
+  }
+};
+
+// FAQ Controllers
+exports.getAllFaqs = async (req, res, next) => {
+  try {
+    const faqs = await contentService.getAllFaqs();
+    res.status(200).json({ status: 'success', data: { faqs } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.createFaq = async (req, res, next) => {
+  try {
+    const faq = await contentService.createFaq(req.body);
+    res.status(201).json({ status: 'success', data: { faq } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.updateFaq = async (req, res, next) => {
+  try {
+    const faq = await contentService.updateFaq(req.params.id, req.body);
+    res.status(200).json({ status: 'success', data: { faq } });
+  } catch (error) {
+    if (error.message === 'FAQ not found') {
+      return res.status(404).json({ message: error.message });
+    }
+    next(error);
+  }
+};
+
+exports.deleteFaq = async (req, res, next) => {
+  try {
+    await contentService.deleteFaq(req.params.id);
+    res.status(200).json({ status: 'success', message: 'FAQ deleted successfully' });
+  } catch (error) {
+    if (error.message === 'FAQ not found') {
+      return res.status(404).json({ message: error.message });
+    }
+    next(error);
+  }
+};
+</file>
+
+<file path="controllers/lead.controller.js">
+const leadService = require('../services/lead.service');
+
+exports.createLead = async (req, res, next) => {
+  try {
+    const lead = await leadService.createLead(req.body);
+    res.status(201).json({ status: 'success', data: { lead } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getLeads = async (req, res, next) => {
+  try {
+    const filter = {};
+    if (req.query.contacted !== undefined) {
+      filter.contacted = req.query.contacted === 'true';
+    }
+    const leads = await leadService.getLeads(filter);
+    res.status(200).json({ status: 'success', data: { leads } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.updateLeadStatus = async (req, res, next) => {
+  try {
+    const lead = await leadService.updateLeadStatus(req.params.id, req.body.contacted);
+    res.status(200).json({ status: 'success', data: { lead } });
+  } catch (error) {
+    if (error.message === 'Lead not found') {
+      return res.status(404).json({ message: error.message });
+    }
+    next(error);
+  }
+};
+</file>
+
+<file path="controllers/product.controller.js">
+const productService = require('../services/product.service');
+
+exports.getAllActive = async (req, res, next) => {
+  try {
+    const products = await productService.getAllActive();
+    res.status(200).json({ status: 'success', data: { products } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getById = async (req, res, next) => {
+  try {
+    const product = await productService.getById(req.params.id);
+    res.status(200).json({ status: 'success', data: { product } });
+  } catch (error) {
+    if (error.message === 'Product not found') {
+      return res.status(404).json({ message: error.message });
+    }
+    next(error);
+  }
+};
+
+exports.create = async (req, res, next) => {
+  try {
+    const product = await productService.create(req.body);
+    res.status(201).json({ status: 'success', data: { product } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.update = async (req, res, next) => {
+  try {
+    const product = await productService.update(req.params.id, req.body);
+    res.status(200).json({ status: 'success', data: { product } });
+  } catch (error) {
+    if (error.message === 'Product not found') {
+      return res.status(404).json({ message: error.message });
+    }
+    next(error);
+  }
+};
+
+exports.delete = async (req, res, next) => {
+  try {
+    await productService.softDelete(req.params.id);
+    res.status(200).json({ status: 'success', message: 'Product deleted successfully' });
+  } catch (error) {
+    if (error.message === 'Product not found') {
+      return res.status(404).json({ message: error.message });
+    }
+    next(error);
+  }
+};
+</file>
+
+<file path="middleware/auth.middleware.js">
+const jwt = require('jsonwebtoken');
+const authConfig = require('../config/auth.config');
+const User = require('../models/User.model');
+
+const protect = async (req, res, next) => {
+  let token;
+
+  // Check for token in headers
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    token = req.headers.authorization.split(' ')[1];
+  }
+
+  if (!token) {
+    return res.status(401).json({ message: 'Not authorized, no token provided' });
+  }
+
+  try {
+    // Verify token
+    const decoded = jwt.verify(token, authConfig.secret);
+
+    // Add user to request
+    req.user = await User.findById(decoded.id).select('-passwordHash');
+    
+    if (!req.user) {
+      return res.status(401).json({ message: 'Not authorized, user not found' });
+    }
+
+    next();
+  } catch (error) {
+    console.error(error);
+    return res.status(401).json({ message: 'Not authorized, token failed' });
+  }
+};
+
+module.exports = { protect };
+</file>
+
+<file path="middleware/globalErrorHandler.js">
+/**
+ * Global Error Handler Middleware
+ */
+const globalErrorHandler = (err, req, res, next) => {
+  console.error(err.stack);
+
+  const statusCode = err.statusCode || 500;
+  const message = err.message || 'Internal Server Error';
+
+  res.status(statusCode).json({
+    status: 'error',
+    statusCode,
+    message,
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+  });
+};
+
+module.exports = globalErrorHandler;
+</file>
+
+<file path="middleware/role.middleware.js">
+const restrictTo = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Not authorized' });
+    }
+
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({ message: 'Forbidden, you do not have the required role' });
+    }
+
+    next();
+  };
+};
+
+module.exports = { restrictTo };
+</file>
+
+<file path="middleware/upload.middleware.js">
+const multer = require('multer');
+const fs = require('fs');
+const path = require('path');
+
+// Configure storage
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const caseId = req.params.id || 'temp_' + Date.now();
+    const dir = path.join('uploads', 'cases', caseId.toString());
+    
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(dir)){
+        fs.mkdirSync(dir, { recursive: true });
+    }
+    cb(null, dir);
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + '-' + file.originalname.replace(/\s/g, '_'));
+  }
+});
+
+// File filter
+const fileFilter = (req, file, cb) => {
+  const allowedTypes = ['.stl', '.ply', '.jpg', '.jpeg', '.png', '.pdf'];
+  const ext = path.extname(file.originalname).toLowerCase();
+  if (allowedTypes.includes(ext)) {
+    cb(null, true);
+  } else {
+    cb(new Error(`File type ${ext} not allowed`), false);
+  }
+};
+
+const uploadCaseFiles = multer({ 
+  storage: storage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 20 * 1024 * 1024 // 20 MB max per file
+  }
+});
+
+module.exports = { uploadCaseFiles };
+</file>
+
+<file path="middleware/validation.middleware.js">
+const validate = (schema) => (req, res, next) => {
+  const { error } = schema.validate(req.body, { abortEarly: false });
+  if (error) {
+    const errors = error.details.map((detail) => detail.message);
+    return res.status(400).json({ message: 'Validation Error', errors });
+  }
+  next();
+};
+
+module.exports = { validate };
+</file>
+
+<file path="models/BlogPost.model.js">
+const mongoose = require('mongoose');
+
+const BlogPostSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: true
+  },
+  slug: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  contentHtml: {
+    type: String,
+    required: true
+  },
+  imageUrl: {
+    type: String
+  },
+  isPublished: {
+    type: Boolean,
+    default: false
+  },
+  publishedAt: {
+    type: Date
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
+});
+
+module.exports = mongoose.model('BlogPost', BlogPostSchema);
+</file>
+
+<file path="models/CaseOrder.model.js">
+const mongoose = require('mongoose');
+
+const CaseOrderSchema = new mongoose.Schema({
+  clinicId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  productId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Product',
+    required: true
+  },
+  status: {
+    type: String,
+    enum: ['draft', 'review', 'design', 'approved', 'manufacturing', 'shipped', 'delivered'],
+    default: 'draft'
+  },
+  notes: {
+    type: String
+  },
+  files: [{
+    type: String // URLs of uploaded files
+  }],
+  assignedTo: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  designApprovedAt: {
+    type: Date
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
+  }
+});
+
+// Update updatedAt field on every save
+CaseOrderSchema.pre('save', function(next) {
+  this.updatedAt = Date.now();
+  next();
+});
+
+module.exports = mongoose.model('CaseOrder', CaseOrderSchema);
+</file>
+
+<file path="models/Faq.model.js">
+const mongoose = require('mongoose');
+
+const FaqSchema = new mongoose.Schema({
+  question: {
+    type: String,
+    required: true
+  },
+  answer: {
+    type: String,
+    required: true
+  },
+  order: {
+    type: Number,
+    default: 0
+  }
+});
+
+module.exports = mongoose.model('Faq', FaqSchema);
+</file>
+
+<file path="models/Lead.model.js">
+const mongoose = require('mongoose');
+
+const LeadSchema = new mongoose.Schema({
+  firstName: {
+    type: String,
+    required: true
+  },
+  lastName: {
+    type: String,
+    required: true
+  },
+  email: {
+    type: String,
+    required: true,
+    match: [/^\S+@\S+\.\S+$/, 'Please use a valid email address.']
+  },
+  phone: {
+    type: String
+  },
+  clinicName: {
+    type: String
+  },
+  roleInClinic: {
+    type: String
+  },
+  contacted: {
+    type: Boolean,
+    default: false
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
+});
+
+module.exports = mongoose.model('Lead', LeadSchema);
+</file>
+
+<file path="models/Product.model.js">
+const mongoose = require('mongoose');
+
+const ProductSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  description: {
+    type: String,
+    required: true
+  },
+  basePrice: {
+    type: Number,
+    required: true,
+    min: 0
+  },
+  imageUrl: {
+    type: String
+  },
+  deliveryDays: {
+    type: Number,
+    required: true,
+    min: 1
+  },
+  isActive: {
+    type: Boolean,
+    default: true
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
+});
+
+module.exports = mongoose.model('Product', ProductSchema);
+</file>
+
+<file path="models/User.model.js">
+const mongoose = require('mongoose');
+const bcrypt = require('bcrypt');
+
+const UserSchema = new mongoose.Schema({
+  firstName: {
+    type: String,
+    required: true,
+    minlength: 2,
+    maxlength: 50
+  },
+  lastName: {
+    type: String,
+    required: true,
+    minlength: 2,
+    maxlength: 50
+  },
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+    match: [/^\S+@\S+\.\S+$/, 'Please use a valid email address.']
+  },
+  passwordHash: {
+    type: String,
+    required: true,
+    minlength: 60 // bcrypt hash length
+  },
+  phone: {
+    type: String
+  },
+  clinicName: {
+    type: String,
+    required: function() { return this.role === 'clinic'; }
+  },
+  role: {
+    type: String,
+    enum: ['clinic', 'labtech', 'admin'],
+    default: 'clinic'
+  },
+  resetPasswordToken: {
+    type: String
+  },
+  resetPasswordExpires: {
+    type: Date
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  lastLogin: {
+    type: Date
+  }
+});
+
+// Method to compare passwords
+UserSchema.methods.comparePassword = async function(candidatePassword) {
+  return await bcrypt.compare(candidatePassword, this.passwordHash);
+};
+
+module.exports = mongoose.model('User', UserSchema);
+</file>
+
+<file path="routes/auth.routes.js">
+const express = require('express');
+const authController = require('../controllers/auth.controller');
+const { validate } = require('../middleware/validation.middleware');
+const { registerSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema } = require('../validations/auth.validation');
+const { protect } = require('../middleware/auth.middleware');
+
+const router = express.Router();
+
+router.post('/register', validate(registerSchema), authController.register);
+router.post('/login', validate(loginSchema), authController.login);
+router.post('/logout', authController.logout);
+router.post('/forgot-password', validate(forgotPasswordSchema), authController.forgotPassword);
+router.post('/reset-password', validate(resetPasswordSchema), authController.resetPassword);
+
+router.get('/me', protect, authController.getMe);
+
+module.exports = router;
+</file>
+
+<file path="routes/case.routes.js">
+const express = require('express');
+const caseController = require('../controllers/case.controller');
+const { protect } = require('../middleware/auth.middleware');
+const { restrictTo } = require('../middleware/role.middleware');
+const { uploadCaseFiles } = require('../middleware/upload.middleware');
+const { validate } = require('../middleware/validation.middleware');
+const { createCaseSchema, updateCaseStatusSchema } = require('../validations/case.validation');
+
+const router = express.Router();
+
+router.use(protect); // All case routes require authentication
+
+router.route('/')
+  .get(caseController.getCases)
+  .post(restrictTo('clinic'), validate(createCaseSchema), caseController.createCase);
+
+router.route('/:id')
+  .get(caseController.getCaseById)
+  .put(restrictTo('clinic'), caseController.updateCase)
+  .delete(restrictTo('clinic'), caseController.deleteCase);
+
+// Upload files
+router.post('/:id/files', restrictTo('clinic'), uploadCaseFiles.array('files', 10), caseController.uploadFiles);
+
+// Submit case (draft -> review)
+router.post('/:id/submit', restrictTo('clinic'), caseController.submitCase);
+
+// Update status (labtech/admin)
+router.put('/:id/status', restrictTo('labtech', 'admin'), validate(updateCaseStatusSchema), caseController.updateStatus);
+
+// Approve design (clinic)
+router.post('/:id/approve-design', restrictTo('clinic'), caseController.approveDesign);
+
+module.exports = router;
+</file>
+
+<file path="routes/content.routes.js">
+const express = require('express');
+const contentController = require('../controllers/content.controller');
+const { protect } = require('../middleware/auth.middleware');
+const { restrictTo } = require('../middleware/role.middleware');
+
+const router = express.Router();
+
+// Blog Routes
+router.route('/blog')
+  .get(contentController.getPublishedPosts)
+  .post(protect, restrictTo('admin'), contentController.createPost);
+
+router.route('/blog/:slug')
+  .get(contentController.getPostBySlug);
+
+router.route('/blog/:id') // Different param to avoid conflict with slug
+  .put(protect, restrictTo('admin'), contentController.updatePost)
+  .delete(protect, restrictTo('admin'), contentController.deletePost);
+
+// FAQ Routes
+router.route('/faq')
+  .get(contentController.getAllFaqs)
+  .post(protect, restrictTo('admin'), contentController.createFaq);
+
+router.route('/faq/:id')
+  .put(protect, restrictTo('admin'), contentController.updateFaq)
+  .delete(protect, restrictTo('admin'), contentController.deleteFaq);
+
+module.exports = router;
+</file>
+
+<file path="routes/lead.routes.js">
+const express = require('express');
+const leadController = require('../controllers/lead.controller');
+const { protect } = require('../middleware/auth.middleware');
+const { restrictTo } = require('../middleware/role.middleware');
+const { validate } = require('../middleware/validation.middleware');
+const { createLeadSchema } = require('../validations/lead.validation');
+
+const router = express.Router();
+
+router.route('/')
+  .post(validate(createLeadSchema), leadController.createLead)
+  .get(protect, restrictTo('admin'), leadController.getLeads);
+
+router.route('/:id/contacted')
+  .put(protect, restrictTo('admin'), leadController.updateLeadStatus);
+
+module.exports = router;
+</file>
+
+<file path="routes/product.routes.js">
+const express = require('express');
+const productController = require('../controllers/product.controller');
+const { protect } = require('../middleware/auth.middleware');
+const { restrictTo } = require('../middleware/role.middleware');
+
+const router = express.Router();
+
+router.route('/')
+  .get(productController.getAllActive)
+  .post(protect, restrictTo('admin'), productController.create);
+
+router.route('/:id')
+  .get(productController.getById)
+  .put(protect, restrictTo('admin'), productController.update)
+  .delete(protect, restrictTo('admin'), productController.delete);
+
+module.exports = router;
+</file>
+
+<file path="services/auth.service.js">
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const User = require('../models/User.model');
+const authConfig = require('../config/auth.config');
+const emailService = require('../utils/email.service');
+
+const generateToken = (id) => {
+  return jwt.sign({ id }, authConfig.secret, {
+    expiresIn: authConfig.expiresIn
+  });
+};
+
+const register = async (userData) => {
+  const { firstName, lastName, email, password, clinicName, phone } = userData;
+
+  const existingUser = await User.findOne({ email });
+  if (existingUser) {
+    throw new Error('Email already in use');
+  }
+
+  const salt = await bcrypt.genSalt(12);
+  const passwordHash = await bcrypt.hash(password, salt);
+
+  const user = await User.create({
+    firstName,
+    lastName,
+    email,
+    passwordHash,
+    clinicName,
+    phone,
+    role: 'clinic'
+  });
+
+  return generateToken(user._id);
+};
+
+const login = async (email, password) => {
+  const user = await User.findOne({ email });
+  if (!user) {
+    throw new Error('Invalid email or password');
+  }
+
+  const isMatch = await user.comparePassword(password);
+  if (!isMatch) {
+    throw new Error('Invalid email or password');
+  }
+
+  user.lastLogin = Date.now();
+  await user.save();
+
+  return generateToken(user._id);
+};
+
+const forgotPassword = async (email, resetUrlBase) => {
+  const user = await User.findOne({ email });
+  if (!user) {
+    throw new Error('There is no user with that email address.');
+  }
+
+  const resetToken = crypto.randomBytes(32).toString('hex');
+  user.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+  user.resetPasswordExpires = Date.now() + 10 * 60 * 1000; // 10 mins
+
+  await user.save({ validateBeforeSave: false });
+
+  const resetURL = `${resetUrlBase}?token=${resetToken}`;
+  const message = `Forgot your password? Submit a PATCH request with your new password to: ${resetURL}.\nIf you didn't forget your password, please ignore this email!`;
+
+  try {
+    await emailService.sendEmail(
+      user.email,
+      'Your password reset token (valid for 10 min)',
+      message,
+      `<p>Forgot your password? Click <a href="${resetURL}">here</a> to reset it.</p>`
+    );
+  } catch (err) {
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save({ validateBeforeSave: false });
+    throw new Error('There was an error sending the email. Try again later!');
+  }
+};
+
+const resetPassword = async (token, newPassword) => {
+  const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+  const user = await User.findOne({
+    resetPasswordToken: hashedToken,
+    resetPasswordExpires: { $gt: Date.now() }
+  });
+
+  if (!user) {
+    throw new Error('Token is invalid or has expired');
+  }
+
+  const salt = await bcrypt.genSalt(12);
+  user.passwordHash = await bcrypt.hash(newPassword, salt);
+  user.resetPasswordToken = undefined;
+  user.resetPasswordExpires = undefined;
+  await user.save();
+
+  return generateToken(user._id);
+};
+
+const getUserById = async (id) => {
+  return await User.findById(id).select('-passwordHash -resetPasswordToken -resetPasswordExpires');
+};
+
+module.exports = {
+  register,
+  login,
+  forgotPassword,
+  resetPassword,
+  getUserById
+};
+</file>
+
+<file path="services/case.service.js">
+const CaseOrder = require('../models/CaseOrder.model');
+const Product = require('../models/Product.model');
+
+const createCase = async (clinicId, caseData) => {
+  const { productId, notes } = caseData;
+
+  const product = await Product.findById(productId);
+  if (!product) {
+    throw new Error('Product not found');
+  }
+
+  const newCase = await CaseOrder.create({
+    clinicId,
+    productId,
+    notes,
+    status: 'draft'
+  });
+
+  return newCase;
+};
+
+const getCases = async (user) => {
+  let query = {};
+  if (user.role === 'clinic') {
+    query.clinicId = user._id;
+  }
+  // Labtech and Admin can see all cases
+
+  return await CaseOrder.find(query).populate('productId', 'name').populate('clinicId', 'clinicName email').sort({ createdAt: -1 });
+};
+
+const getCaseById = async (id, user) => {
+  const caseOrder = await CaseOrder.findById(id).populate('productId').populate('clinicId', 'clinicName email firstName lastName phone');
+  
+  if (!caseOrder) {
+    throw new Error('Case not found');
+  }
+
+  if (user.role === 'clinic' && caseOrder.clinicId._id.toString() !== user._id.toString()) {
+    throw new Error('Not authorized to view this case');
+  }
+
+  return caseOrder;
+};
+
+const updateCase = async (id, user, data) => {
+  const caseOrder = await CaseOrder.findById(id);
+
+  if (!caseOrder) {
+    throw new Error('Case not found');
+  }
+
+  if (user.role === 'clinic' && caseOrder.clinicId.toString() !== user._id.toString()) {
+    throw new Error('Not authorized to update this case');
+  }
+
+  if (user.role === 'clinic' && caseOrder.status !== 'draft') {
+    throw new Error('Cannot update case unless it is in draft status');
+  }
+
+  if (data.notes !== undefined) {
+    caseOrder.notes = data.notes;
+  }
+  
+  await caseOrder.save();
+  return caseOrder;
+};
+
+const uploadFiles = async (id, user, fileUrls) => {
+  const caseOrder = await CaseOrder.findById(id);
+
+  if (!caseOrder) {
+    throw new Error('Case not found');
+  }
+
+  if (user.role === 'clinic' && caseOrder.clinicId.toString() !== user._id.toString()) {
+    throw new Error('Not authorized to upload files for this case');
+  }
+
+  // Allow uploading files in draft status
+  if (user.role === 'clinic' && caseOrder.status !== 'draft') {
+     throw new Error('Cannot upload files unless the case is in draft status');
+  }
+
+  caseOrder.files.push(...fileUrls);
+  await caseOrder.save();
+  return caseOrder;
+};
+
+const updateStatus = async (id, user, status) => {
+  const caseOrder = await CaseOrder.findById(id);
+
+  if (!caseOrder) {
+    throw new Error('Case not found');
+  }
+
+  // Clinic can only change from draft to review
+  if (user.role === 'clinic') {
+     if (status !== 'review') {
+        throw new Error('Clinic can only submit case for review');
+     }
+     if (caseOrder.status !== 'draft') {
+        throw new Error('Case is already submitted');
+     }
+  }
+
+  caseOrder.status = status;
+  await caseOrder.save();
+  return caseOrder;
+};
+
+const approveDesign = async (id, user) => {
+  const caseOrder = await CaseOrder.findById(id);
+
+  if (!caseOrder) {
+    throw new Error('Case not found');
+  }
+
+  if (caseOrder.clinicId.toString() !== user._id.toString()) {
+    throw new Error('Not authorized to approve this case');
+  }
+
+  if (caseOrder.status !== 'design') {
+    throw new Error('Case is not in design status');
+  }
+
+  caseOrder.status = 'approved';
+  caseOrder.designApprovedAt = Date.now();
+  await caseOrder.save();
+  return caseOrder;
+};
+
+const deleteCase = async (id, user) => {
+  const caseOrder = await CaseOrder.findById(id);
+
+  if (!caseOrder) {
+    throw new Error('Case not found');
+  }
+
+  if (user.role === 'clinic' && caseOrder.clinicId.toString() !== user._id.toString()) {
+    throw new Error('Not authorized to delete this case');
+  }
+
+  if (caseOrder.status !== 'draft') {
+    throw new Error('Can only delete cases in draft status');
+  }
+
+  await caseOrder.deleteOne();
+  return true;
+};
+
+module.exports = {
+  createCase,
+  getCases,
+  getCaseById,
+  updateCase,
+  uploadFiles,
+  updateStatus,
+  approveDesign,
+  deleteCase
+};
+</file>
+
+<file path="services/content.service.js">
+const BlogPost = require('../models/BlogPost.model');
+const Faq = require('../models/Faq.model');
+
+// Blog Services
+const getPublishedPosts = async () => {
+  return await BlogPost.find({ isPublished: true }).sort({ publishedAt: -1 });
+};
+
+const getPostBySlug = async (slug) => {
+  const post = await BlogPost.findOne({ slug });
+  if (!post) throw new Error('Post not found');
+  return post;
+};
+
+const createPost = async (postData) => {
+  if (postData.isPublished && !postData.publishedAt) {
+    postData.publishedAt = Date.now();
+  }
+  return await BlogPost.create(postData);
+};
+
+const updatePost = async (id, postData) => {
+  if (postData.isPublished && !postData.publishedAt) {
+    postData.publishedAt = Date.now();
+  }
+  const post = await BlogPost.findByIdAndUpdate(id, postData, { new: true });
+  if (!post) throw new Error('Post not found');
+  return post;
+};
+
+const deletePost = async (id) => {
+  const post = await BlogPost.findByIdAndDelete(id);
+  if (!post) throw new Error('Post not found');
+  return true;
+};
+
+// FAQ Services
+const getAllFaqs = async () => {
+  return await Faq.find().sort({ order: 1 });
+};
+
+const createFaq = async (faqData) => {
+  return await Faq.create(faqData);
+};
+
+const updateFaq = async (id, faqData) => {
+  const faq = await Faq.findByIdAndUpdate(id, faqData, { new: true });
+  if (!faq) throw new Error('FAQ not found');
+  return faq;
+};
+
+const deleteFaq = async (id) => {
+  const faq = await Faq.findByIdAndDelete(id);
+  if (!faq) throw new Error('FAQ not found');
+  return true;
+};
+
+module.exports = {
+  getPublishedPosts,
+  getPostBySlug,
+  createPost,
+  updatePost,
+  deletePost,
+  getAllFaqs,
+  createFaq,
+  updateFaq,
+  deleteFaq
+};
+</file>
+
+<file path="services/lead.service.js">
+const Lead = require('../models/Lead.model');
+
+const createLead = async (leadData) => {
+  return await Lead.create(leadData);
+};
+
+const getLeads = async (filter = {}) => {
+  return await Lead.find(filter).sort({ createdAt: -1 });
+};
+
+const updateLeadStatus = async (id, contacted) => {
+  const lead = await Lead.findByIdAndUpdate(id, { contacted }, { new: true });
+  if (!lead) {
+    throw new Error('Lead not found');
+  }
+  return lead;
+};
+
+module.exports = {
+  createLead,
+  getLeads,
+  updateLeadStatus
+};
+</file>
+
+<file path="services/product.service.js">
+const Product = require('../models/Product.model');
+
+const getAllActive = async () => {
+  return await Product.find({ isActive: true });
+};
+
+const getById = async (id) => {
+  const product = await Product.findById(id);
+  if (!product) {
+    throw new Error('Product not found');
+  }
+  return product;
+};
+
+const create = async (productData) => {
+  return await Product.create(productData);
+};
+
+const update = async (id, productData) => {
+  const product = await Product.findByIdAndUpdate(id, productData, { new: true, runValidators: true });
+  if (!product) {
+    throw new Error('Product not found');
+  }
+  return product;
+};
+
+const softDelete = async (id) => {
+  const product = await Product.findByIdAndUpdate(id, { isActive: false }, { new: true });
+  if (!product) {
+    throw new Error('Product not found');
+  }
+  return product;
+};
+
+module.exports = {
+  getAllActive,
+  getById,
+  create,
+  update,
+  softDelete
+};
+</file>
+
+<file path="utils/email.service.js">
+const nodemailer = require('nodemailer');
+
+const transporter = nodemailer.createTransport({
+  host: process.env.EMAIL_HOST,
+  port: process.env.EMAIL_PORT,
+  secure: false, // true for 465, false for other ports
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
+
+const sendEmail = async (to, subject, text, html) => {
+  try {
+    const info = await transporter.sendMail({
+      from: `"Lazord Dental Lab" <${process.env.EMAIL_USER}>`,
+      to,
+      subject,
+      text,
+      html
+    });
+    console.log('Message sent: %s', info.messageId);
+    return info;
+  } catch (error) {
+    console.error('Error sending email: ', error);
+    throw error;
+  }
+};
+
+module.exports = { sendEmail };
+</file>
+
+<file path="validations/auth.validation.js">
+const Joi = require('joi');
+
+const registerSchema = Joi.object({
+  firstName: Joi.string().min(2).max(50).required(),
+  lastName: Joi.string().min(2).max(50).required(),
+  email: Joi.string().email().required(),
+  password: Joi.string().min(8).required(),
+  passwordConfirm: Joi.string().valid(Joi.ref('password')).required().messages({
+    'any.only': 'Passwords do not match'
+  }),
+  clinicName: Joi.string().required(),
+  phone: Joi.string().allow('', null)
+});
+
+const loginSchema = Joi.object({
+  email: Joi.string().email().required(),
+  password: Joi.string().required()
+});
+
+const forgotPasswordSchema = Joi.object({
+  email: Joi.string().email().required()
+});
+
+const resetPasswordSchema = Joi.object({
+  token: Joi.string().required(),
+  password: Joi.string().min(8).required()
+});
+
+module.exports = {
+  registerSchema,
+  loginSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema
+};
+</file>
+
+<file path="validations/case.validation.js">
+const Joi = require('joi');
+
+const createCaseSchema = Joi.object({
+  productId: Joi.string().required(),
+  notes: Joi.string().allow('', null)
+});
+
+const updateCaseStatusSchema = Joi.object({
+  status: Joi.string().valid('review', 'design', 'approved', 'manufacturing', 'shipped', 'delivered').required()
+});
+
+module.exports = {
+  createCaseSchema,
+  updateCaseStatusSchema
+};
+</file>
+
+<file path="validations/lead.validation.js">
+const Joi = require('joi');
+
+const createLeadSchema = Joi.object({
+  firstName: Joi.string().required(),
+  lastName: Joi.string().required(),
+  email: Joi.string().email().required(),
+  phone: Joi.string().allow('', null),
+  clinicName: Joi.string().allow('', null),
+  roleInClinic: Joi.string().allow('', null)
+});
+
+module.exports = {
+  createLeadSchema
+};
+</file>
+
+<file path=".gitignore">
+node_modules/
+.env
+uploads/
+.DS_Store
+</file>
+
+<file path="admin-dashboard.html">
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>لوحة تحكم المشرف</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { background-color: #f4f7f6; font-family: 'Cairo', sans-serif; padding: 2rem; }
+    .dashboard { max-width: 1200px; margin: 0 auto; background: #fff; border-radius: 10px; padding: 2rem; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+    .tabs { display: flex; gap: 1rem; margin-bottom: 2rem; border-bottom: 2px solid #eee; padding-bottom: 1rem; }
+    .tab { cursor: pointer; padding: 0.5rem 1rem; font-weight: bold; border-radius: 5px; }
+    .tab.active { background: var(--green-mid); color: white; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1.5rem; }
+    th, td { padding: 1rem; text-align: right; border-bottom: 1px solid #eee; }
+    th { background: #f9fbf9; color: var(--green-dark); }
+    .btn-action { padding: 0.5rem 1rem; background: var(--green-mid); color: white; border-radius: 5px; text-decoration: none; font-size: 0.9rem; border: none; cursor: pointer; }
+    .form-row { margin-bottom: 1rem; }
+    .form-row input, .form-row textarea { width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 5px; }
+  </style>
+</head>
+<body>
+  <div class="dashboard">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <h1>لوحة تحكم المسؤول (Admin)</h1>
+      <button onclick="logout()" class="btn-action" style="background: #e74c3c;">تسجيل الخروج</button>
+    </div>
+    
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('products')">المنتجات</div>
+      <div class="tab" onclick="switchTab('leads')">العملاء المحتملين</div>
+      <div class="tab" onclick="switchTab('cases')">الطلبات (Cases)</div>
+    </div>
+
+    <!-- Products Tab -->
+    <div id="productsTab" class="tab-content active">
+      <h3>إضافة منتج جديد</h3>
+      <form id="productForm" style="max-width: 600px;">
+        <div class="form-row"><input type="text" id="pName" placeholder="اسم المنتج" required></div>
+        <div class="form-row"><textarea id="pDesc" placeholder="الوصف" required></textarea></div>
+        <div class="form-row"><input type="number" id="pPrice" placeholder="السعر الأساسي" required></div>
+        <div class="form-row"><input type="number" id="pDays" placeholder="أيام التوصيل" required></div>
+        <button type="submit" class="btn-action">إضافة</button>
+      </form>
+
+      <table id="productsTable">
+        <thead>
+          <tr>
+            <th>الاسم</th>
+            <th>السعر</th>
+            <th>أيام التوصيل</th>
+            <th>الإجراءات</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- Leads Tab -->
+    <div id="leadsTab" class="tab-content">
+      <table id="leadsTable">
+        <thead>
+          <tr>
+            <th>الاسم</th>
+            <th>البريد</th>
+            <th>العيادة</th>
+            <th>تواصل؟</th>
+            <th>الإجراء</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- Cases Tab -->
+    <div id="casesTab" class="tab-content">
+      <a href="lab-dashboard.html" class="btn-action">الانتقال للوحة المختبر لتغيير حالات الطلبات</a>
+    </div>
+
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = 'login.html';
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      event.target.classList.add('active');
+      document.getElementById(tabId + 'Tab').classList.add('active');
+    }
+
+    // Products
+    async function loadProducts() {
+      const res = await fetch('/api/products');
+      const data = await res.json();
+      const tbody = document.querySelector('#productsTable tbody');
+      tbody.innerHTML = '';
+      if (data.data && data.data.products) {
+        data.data.products.forEach(p => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${p.name}</td>
+            <td>$${p.basePrice}</td>
+            <td>${p.deliveryDays}</td>
+            <td>
+              <button onclick="deleteProduct('${p._id}')" class="btn-action" style="background:#e74c3c;">حذف</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+    }
+
+    document.getElementById('productForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const payload = {
+        name: document.getElementById('pName').value,
+        description: document.getElementById('pDesc').value,
+        basePrice: document.getElementById('pPrice').value,
+        deliveryDays: document.getElementById('pDays').value
+      };
+      const res = await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        alert('تم الإضافة');
+        document.getElementById('productForm').reset();
+        loadProducts();
+      } else {
+        alert('خطأ');
+      }
+    });
+
+    async function deleteProduct(id) {
+      if(confirm('هل أنت متأكد؟')) {
+        await fetch(`/api/products/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+        loadProducts();
+      }
+    }
+
+    // Leads
+    async function loadLeads() {
+      const res = await fetch('/api/leads', { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      const tbody = document.querySelector('#leadsTable tbody');
+      tbody.innerHTML = '';
+      if (data.data && data.data.leads) {
+        data.data.leads.forEach(l => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${l.firstName} ${l.lastName}</td>
+            <td>${l.email}</td>
+            <td>${l.clinicName || '-'}</td>
+            <td>${l.contacted ? 'نعم' : 'لا'}</td>
+            <td>
+              ${!l.contacted ? `<button onclick="markContacted('${l._id}')" class="btn-action">تحديد كمتواصل</button>` : ''}
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+    }
+
+    async function markContacted(id) {
+      await fetch(`/api/leads/${id}/contacted`, { 
+        method: 'PUT', 
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ contacted: true })
+      });
+      loadLeads();
+    }
+
+    function logout() {
+      localStorage.removeItem('token');
+      window.location.href = 'login.html';
+    }
+
+    loadProducts();
+    loadLeads();
+  </script>
+</body>
+</html>
+</file>
+
+<file path="app.js">
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const morgan = require('morgan');
+const path = require('path');
+const globalErrorHandler = require('./middleware/globalErrorHandler');
+
+// Require Routes (will be created later)
+const authRoutes = require('./routes/auth.routes');
+const productRoutes = require('./routes/product.routes');
+const caseRoutes = require('./routes/case.routes');
+const contentRoutes = require('./routes/content.routes');
+const leadRoutes = require('./routes/lead.routes');
+
+const app = express();
+
+// Middleware
+app.use(helmet());
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(morgan('dev'));
+
+// Serve uploaded files statically
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Serve frontend static files
+app.use(express.static(__dirname));
+
+// API Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/cases', caseRoutes);
+app.use('/api/content', contentRoutes);
+app.use('/api/leads', leadRoutes);
+
+// Global Error Handler
+app.use(globalErrorHandler);
+
+module.exports = app;
+</file>
+
+<file path="case-detail.html">
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>تفاصيل الطلب</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { background-color: #f4f7f6; font-family: 'Cairo', sans-serif; padding: 2rem; }
+    .container { max-width: 800px; margin: 0 auto; background: #fff; border-radius: 10px; padding: 2rem; }
+    .btn-action { padding: 0.5rem 1rem; background: var(--green-mid); color: white; border-radius: 5px; cursor: pointer; border: none; font-family: inherit;}
+    .details { background: #fafafa; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; line-height: 1.8; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="#" onclick="history.back(); return false;" style="color: var(--green-mid); text-decoration: none;">&larr; العودة</a>
+    <h1 style="margin-top: 1rem;">تفاصيل الطلب <span id="caseIdTitle"></span></h1>
+    
+    <div class="details" id="caseDetails">
+      جاري التحميل...
+    </div>
+
+    <div id="uploadSection" style="display: none; margin-top: 2rem; border-top: 1px solid #eee; padding-top: 1rem;">
+      <h3>رفع الملفات (Draft فقط)</h3>
+      <form id="uploadForm" enctype="multipart/form-data">
+        <input type="file" id="caseFiles" multiple accept=".stl,.ply,.jpg,.jpeg,.png,.pdf" style="margin-bottom: 1rem;" required>
+        <button type="submit" class="btn-action">رفع الملفات</button>
+      </form>
+    </div>
+
+    <div id="submitSection" style="display: none; margin-top: 2rem;">
+      <button id="submitCaseBtn" class="btn-action" style="background: #27ae60;">إرسال الطلب للمراجعة (Submit)</button>
+    </div>
+
+    <div id="approveSection" style="display: none; margin-top: 2rem;">
+      <button id="approveDesignBtn" class="btn-action" style="background: #2980b9;">الموافقة على التصميم</button>
+    </div>
+
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = 'login.html';
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const caseId = urlParams.get('id');
+
+    async function loadCase() {
+      const res = await fetch(`/api/cases/${caseId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const c = data.data.caseOrder;
+        document.getElementById('caseIdTitle').textContent = '#' + c._id.slice(-6);
+        
+        let filesHtml = c.files.map(f => `<a href="${f}" target="_blank">تحميل الملف</a>`).join(' | ');
+
+        document.getElementById('caseDetails').innerHTML = `
+          <strong>العيادة:</strong> ${c.clinicId?.clinicName || ''} <br>
+          <strong>المنتج:</strong> ${c.productId?.name || ''} <br>
+          <strong>الحالة:</strong> ${c.status} <br>
+          <strong>تاريخ الإنشاء:</strong> ${new Date(c.createdAt).toLocaleDateString('ar-EG')} <br>
+          <strong>ملاحظات:</strong> ${c.notes || '-'} <br>
+          <strong>الملفات:</strong> ${filesHtml || 'لا يوجد ملفات'}
+        `;
+
+        if (c.status === 'draft') {
+          document.getElementById('uploadSection').style.display = 'block';
+          if (c.files.length > 0) {
+            document.getElementById('submitSection').style.display = 'block';
+          }
+        } else {
+          document.getElementById('uploadSection').style.display = 'none';
+          document.getElementById('submitSection').style.display = 'none';
+        }
+
+        if (c.status === 'design') {
+          document.getElementById('approveSection').style.display = 'block';
+        } else {
+          document.getElementById('approveSection').style.display = 'none';
+        }
+      }
+    }
+
+    document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const filesInput = document.getElementById('caseFiles');
+      const formData = new FormData();
+      for (const file of filesInput.files) {
+        formData.append('files', file);
+      }
+
+      const res = await fetch(`/api/cases/${caseId}/files`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+
+      if (res.ok) {
+        alert('تم رفع الملفات بنجاح');
+        loadCase();
+      } else {
+        alert('فشل الرفع');
+      }
+    });
+
+    document.getElementById('submitCaseBtn')?.addEventListener('click', async () => {
+      const res = await fetch(`/api/cases/${caseId}/submit`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        alert('تم الإرسال');
+        loadCase();
+      }
+    });
+
+    document.getElementById('approveDesignBtn')?.addEventListener('click', async () => {
+      const res = await fetch(`/api/cases/${caseId}/approve-design`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        alert('تم الموافقة على التصميم');
+        loadCase();
+      }
+    });
+
+    loadCase();
+  </script>
+</body>
+</html>
+</file>
+
+<file path="clinic-dashboard.html">
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>لوحة تحكم العيادة</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { background-color: #f4f7f6; font-family: 'Cairo', sans-serif; padding: 2rem; }
+    .dashboard { max-width: 1000px; margin: 0 auto; background: #fff; border-radius: 10px; padding: 2rem; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+    table { width: 100%; border-collapse: collapse; margin-top: 1.5rem; }
+    th, td { padding: 1rem; text-align: right; border-bottom: 1px solid #eee; }
+    th { background: #f9fbf9; color: var(--green-dark); }
+    .btn-action { padding: 0.5rem 1rem; background: var(--green-mid); color: white; border-radius: 5px; text-decoration: none; font-size: 0.9rem; }
+    .header-actions { display: flex; justify-content: space-between; align-items: center; }
+  </style>
+</head>
+<body>
+  <div class="dashboard">
+    <div class="header-actions">
+      <h1>طلبات العيادة</h1>
+      <button onclick="logout()" class="btn-action" style="background: #e74c3c;">تسجيل الخروج</button>
+    </div>
+    
+    <div style="margin-top: 1rem;">
+      <h3>إنشاء طلب جديد</h3>
+      <form id="newCaseForm" style="display: flex; gap: 1rem; align-items: center; margin-top: 1rem;">
+        <select id="productSelect" required style="padding: 0.5rem; border-radius: 5px;"></select>
+        <input type="text" id="caseNotes" placeholder="ملاحظات (اختياري)" style="padding: 0.5rem; border-radius: 5px; flex: 1;">
+        <button type="submit" class="btn-action">إنشاء مسودة</button>
+      </form>
+    </div>
+
+    <table id="casesTable">
+      <thead>
+        <tr>
+          <th>رقم الطلب</th>
+          <th>المنتج</th>
+          <th>الحالة</th>
+          <th>تاريخ الإنشاء</th>
+          <th>الإجراءات</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Data will be loaded here -->
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = 'login.html';
+
+    async function loadProducts() {
+      const res = await fetch('/api/products');
+      const data = await res.json();
+      const select = document.getElementById('productSelect');
+      if (data.data && data.data.products) {
+        data.data.products.forEach(p => {
+          const opt = document.createElement('option');
+          opt.value = p._id;
+          opt.textContent = p.name;
+          select.appendChild(opt);
+        });
+      }
+    }
+
+    async function loadCases() {
+      const res = await fetch('/api/cases', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      const tbody = document.querySelector('#casesTable tbody');
+      tbody.innerHTML = '';
+      if (data.data && data.data.cases) {
+        data.data.cases.forEach(c => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${c._id.slice(-6)}</td>
+            <td>${c.productId?.name || 'غير محدد'}</td>
+            <td>${c.status}</td>
+            <td>${new Date(c.createdAt).toLocaleDateString('ar-EG')}</td>
+            <td><a href="case-detail.html?id=${c._id}" class="btn-action">التفاصيل</a></td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+    }
+
+    document.getElementById('newCaseForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const productId = document.getElementById('productSelect').value;
+      const notes = document.getElementById('caseNotes').value;
+
+      const res = await fetch('/api/cases', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ productId, notes })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        window.location.href = `case-detail.html?id=${data.data.caseOrder._id}`;
+      } else {
+        alert('حدث خطأ');
+      }
+    });
+
+    function logout() {
+      localStorage.removeItem('token');
+      window.location.href = 'login.html';
+    }
+
+    loadProducts();
+    loadCases();
+  </script>
+</body>
+</html>
+</file>
+
+<file path="lab-dashboard.html">
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>لوحة تحكم المختبر</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { background-color: #f4f7f6; font-family: 'Cairo', sans-serif; padding: 2rem; }
+    .dashboard { max-width: 1200px; margin: 0 auto; background: #fff; border-radius: 10px; padding: 2rem; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+    table { width: 100%; border-collapse: collapse; margin-top: 1.5rem; }
+    th, td { padding: 1rem; text-align: right; border-bottom: 1px solid #eee; }
+    th { background: #f9fbf9; color: var(--green-dark); }
+    .btn-action { padding: 0.5rem 1rem; background: var(--green-mid); color: white; border-radius: 5px; text-decoration: none; font-size: 0.9rem; border: none; cursor: pointer; }
+    .header-actions { display: flex; justify-content: space-between; align-items: center; }
+  </style>
+</head>
+<body>
+  <div class="dashboard">
+    <div class="header-actions">
+      <h1>لوحة تحكم المختبر (جميع الطلبات)</h1>
+      <button onclick="logout()" class="btn-action" style="background: #e74c3c;">تسجيل الخروج</button>
+    </div>
+    
+    <table id="casesTable">
+      <thead>
+        <tr>
+          <th>رقم الطلب</th>
+          <th>العيادة</th>
+          <th>المنتج</th>
+          <th>الحالة</th>
+          <th>تحديث الحالة</th>
+          <th>الإجراءات</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Data will be loaded here -->
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = 'login.html';
+
+    const statuses = ['review', 'design', 'approved', 'manufacturing', 'shipped', 'delivered'];
+
+    async function loadCases() {
+      const res = await fetch('/api/cases', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      const tbody = document.querySelector('#casesTable tbody');
+      tbody.innerHTML = '';
+      if (data.data && data.data.cases) {
+        data.data.cases.forEach(c => {
+          if (c.status === 'draft') return; // Labtech usually doesn't need to see drafts
+
+          let options = statuses.map(s => `<option value="${s}" ${c.status === s ? 'selected' : ''}>${s}</option>`).join('');
+
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${c._id.slice(-6)}</td>
+            <td>${c.clinicId?.clinicName || 'غير محدد'}</td>
+            <td>${c.productId?.name || 'غير محدد'}</td>
+            <td>${c.status}</td>
+            <td>
+              <select onchange="updateStatus('${c._id}', this.value)" style="padding:0.3rem;">
+                ${options}
+              </select>
+            </td>
+            <td><a href="case-detail.html?id=${c._id}" class="btn-action">التفاصيل</a></td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+    }
+
+    async function updateStatus(id, status) {
+      const res = await fetch(`/api/cases/${id}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status })
+      });
+      if (res.ok) {
+        alert('تم تحديث الحالة');
+        loadCases();
+      } else {
+        alert('حدث خطأ أثناء التحديث');
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem('token');
+      window.location.href = 'login.html';
+    }
+
+    loadCases();
+  </script>
+</body>
+</html>
+</file>
+
+<file path="package.json">
+{
+  "name": "website_for_lazward_dental_clinic",
+  "version": "1.0.0",
+  "description": "",
+  "main": "script.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Abood059/Website_for_Lazward_Dental_Clinic.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Abood059/Website_for_Lazward_Dental_Clinic/issues"
+  },
+  "homepage": "https://github.com/Abood059/Website_for_Lazward_Dental_Clinic#readme",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "helmet": "^8.2.0",
+    "joi": "^18.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.7.0",
+    "morgan": "^1.11.0",
+    "multer": "^2.1.1",
+    "nodemailer": "^9.0.0"
+  },
+  "devDependencies": {
+    "eslint": "^10.5.0"
+  }
+}
+</file>
+
+<file path="README.md">
+# Lazord Dental Lab Platform (Backend & Frontend Integrations)
+
+هذا المستودع يحتوي على الواجهة الخلفية (Backend) بالإضافة إلى الصفحات الأمامية المحدثة لمنصة لازورد لطب الأسنان والمختبرات.
+
+## المتطلبات الأساسية
+- Node.js (الإصدار 14 وما فوق)
+- MongoDB (محلي أو Atlas)
+
+## التثبيت والتشغيل
+
+1. **استنساخ المشروع أو الدخول للمجلد:**
+   \`\`\`bash
+   cd Website_for_Lazward_Dental_Clinic
+   \`\`\`
+
+2. **تثبيت الحزم (Dependencies):**
+   \`\`\`bash
+   npm install
+   \`\`\`
+
+3. **إعداد متغيرات البيئة:**
+   تأكد من وجود ملف `.env` في الجذر (يوجد مثال أدناه).
+   \`\`\`env
+   PORT=5000
+   MONGO_URI=mongodb://localhost:27017/lazord_lab
+   JWT_SECRET=super_secret_jwt_key_here_please_change
+   JWT_EXPIRES_IN=7d
+   EMAIL_HOST=smtp.gmail.com
+   EMAIL_PORT=587
+   EMAIL_USER=your-email@gmail.com
+   EMAIL_PASS=your-password
+   \`\`\`
+
+4. **تشغيل الخادم:**
+   \`\`\`bash
+   node server.js
+   \`\`\`
+   سيتم تشغيل الخادم على المنفذ `5000` افتراضياً وخدمة جميع ملفات الـ HTML الموجودة في الجذر كموقع ثابت.
+
+## هيكلة واجهات برمجة التطبيقات (API Endpoints)
+
+### المصادقة (Auth)
+| المسار | الطريقة | الوصف | الميدلوير |
+|--------|---------|-------|-----------|
+| `/api/auth/register` | POST | إنشاء حساب عيادة جديد | عام |
+| `/api/auth/login` | POST | تسجيل الدخول وإرجاع JWT | عام |
+| `/api/auth/me` | GET | جلب بيانات المستخدم الحالي | protect |
+
+### الطلبات (Cases)
+| المسار | الطريقة | الوصف | الميدلوير |
+|--------|---------|-------|-----------|
+| `/api/cases` | GET | جلب طلبات العيادة الحالية أو كل الطلبات | protect |
+| `/api/cases` | POST | إنشاء طلب جديد | protect (clinic) |
+| `/api/cases/:id/files` | POST | رفع ملفات (STL, PDF, etc) | protect, upload |
+| `/api/cases/:id/submit` | POST | إرسال الطلب (مسودة -> مراجعة) | protect (clinic) |
+| `/api/cases/:id/status`| PUT | تغيير الحالة | protect (labtech/admin)|
+
+### المنتجات (Products)
+| المسار | الطريقة | الوصف | الميدلوير |
+|--------|---------|-------|-----------|
+| `/api/products` | GET | جلب كل المنتجات النشطة | عام |
+| `/api/products` | POST | إضافة منتج | protect (admin) |
+
+### العملاء المحتملين (Leads)
+| المسار | الطريقة | الوصف | الميدلوير |
+|--------|---------|-------|-----------|
+| `/api/leads` | POST | إرسال نموذج تواصل | عام |
+| `/api/leads` | GET | عرض العملاء | protect (admin) |
+
+## الصفحات الجديدة (Dashboards)
+- `register.html` - تسجيل العيادات
+- `login.html` - تم ربطه بالـ API الحقيقي لتوجيه المستخدم للوحة المناسبة.
+- `clinic-dashboard.html` - إدارة طلبات العيادة.
+- `case-detail.html` - تفاصيل ورفع ملفات الطلب.
+- `lab-dashboard.html` - إدارة المختبر للطلبات.
+- `admin-dashboard.html` - إدارة المنتجات والعملاء.
+
+## رفع الملفات
+الملفات المرفوعة يتم تخزينها في المجلد `uploads/cases/:id/`. يتم إرجاع مسار نسبي ويمكن الوصول إليه من خلال `http://localhost:5000/uploads/...`
+
+## أدوات الاختبار
+يمكن اختبار المشروع عن طريق فتح المتصفح على `http://localhost:5000/index.html` أو باستخدام `Postman` لاختبار الـ Endpoints بشكل مباشر.
+</file>
+
+<file path="register.html">
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>تسجيل جديد — لازورد</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=Tajawal:wght@300;400;500;700;800&display=swap"
+    rel="stylesheet" />
+</head>
+
+<body>
+
+  <!-- NAVBAR -->
+  <header class="navbar">
+    <div class="nav-container">
+      <a href="index.html" class="logo">لازورد</a>
+      <nav class="nav-links">
+        <a href="why-lazord.html">لماذا لازورد</a>
+        <a href="lab-services.html">خدمات المختبرات</a>
+        <a href="solutions.html">الحلول</a>
+        <a href="pricing.html">التسعير</a>
+        <a href="learn.html">التعلم</a>
+      </nav>
+      <div class="nav-actions">
+        <span class="phone">هاتف: +(970)0594866148</span>
+        <a href="login.html" class="btn-login">تسجيل الدخول</a>
+        <a href="register.html" class="btn-cta nav-active-login">سجل الآن</a>
+      </div>
+      <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="القائمة">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+    <div class="mobile-menu" id="mobileMenu">
+      <a href="why-lazord.html">لماذا لازورد</a>
+      <a href="lab-services.html">خدمات المختبرات</a>
+      <a href="solutions.html">الحلول</a>
+      <a href="pricing.html">التسعير</a>
+      <a href="learn.html">التعلم</a>
+      <a href="register.html" class="btn-cta mobile-cta">سجل الآن</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="login-section" style="padding: 4rem 1rem;">
+      <div class="login-card" style="max-width: 600px;">
+        <a href="index.html" class="logo login-logo">لازورد</a>
+        <h1>تسجيل حساب جديد</h1>
+        <p class="login-sub">أنشئ حساباً لعيادتك وانضم إلى منصتنا</p>
+
+        <form class="login-form" id="registerForm">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div class="form-group">
+              <label for="firstName">الاسم الأول</label>
+              <input type="text" id="firstName" placeholder="محمد" required />
+            </div>
+            <div class="form-group">
+              <label for="lastName">اسم العائلة</label>
+              <input type="text" id="lastName" placeholder="أحمد" required />
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="clinicName">اسم العيادة</label>
+            <input type="text" id="clinicName" placeholder="عيادة الشفاء للأسنان" required />
+          </div>
+          <div class="form-group">
+            <label for="phone">رقم الهاتف (اختياري)</label>
+            <input type="text" id="phone" placeholder="+(970) 05..." />
+          </div>
+          <div class="form-group">
+            <label for="email">البريد الإلكتروني</label>
+            <input type="email" id="email" placeholder="example@email.com" required />
+          </div>
+          <div class="form-group">
+            <label for="password">كلمة المرور</label>
+            <input type="password" id="password" placeholder="••••••••" required />
+          </div>
+          <div class="form-group">
+            <label for="passwordConfirm">تأكيد كلمة المرور</label>
+            <input type="password" id="passwordConfirm" placeholder="••••••••" required />
+          </div>
+          <div id="registerError" style="color: red; margin-bottom: 1rem; font-size: 0.9rem;"></div>
+          <button type="submit" class="btn-submit login-submit">إنشاء الحساب</button>
+        </form>
+
+        <p class="login-register">لديك حساب بالفعل؟ <a href="login.html" class="link-green">تسجيل الدخول</a></p>
+      </div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+  <script src="register.js"></script>
+</body>
+
+</html>
+</file>
+
+<file path="register.js">
+document.addEventListener('DOMContentLoaded', () => {
+  const registerForm = document.getElementById('registerForm');
+  const errorDiv = document.getElementById('registerError');
+
+  if (registerForm) {
+    registerForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorDiv.textContent = '';
+      
+      const submitBtn = registerForm.querySelector('button[type="submit"]');
+      const originalText = submitBtn.textContent;
+      submitBtn.textContent = 'جاري التحميل...';
+      submitBtn.disabled = true;
+
+      const firstName = document.getElementById('firstName').value;
+      const lastName = document.getElementById('lastName').value;
+      const clinicName = document.getElementById('clinicName').value;
+      const phone = document.getElementById('phone').value;
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const passwordConfirm = document.getElementById('passwordConfirm').value;
+
+      try {
+        const response = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            firstName,
+            lastName,
+            clinicName,
+            phone,
+            email,
+            password,
+            passwordConfirm
+          })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || (data.errors ? data.errors.join(', ') : 'حدث خطأ غير متوقع'));
+        }
+
+        // Show success toast and redirect
+        if (typeof showToast === 'function') {
+           showToast('تم إنشاء الحساب بنجاح! سيتم توجيهك لتسجيل الدخول.', 'success');
+        } else {
+           alert('تم إنشاء الحساب بنجاح!');
+        }
+        
+        setTimeout(() => {
+          window.location.href = 'login.html';
+        }, 2000);
+
+      } catch (error) {
+        errorDiv.textContent = error.message;
+      } finally {
+        submitBtn.textContent = originalText;
+        submitBtn.disabled = false;
+      }
+    });
+  }
+});
+</file>
+
+<file path="server.js">
+require('dotenv').config();
+const app = require('./app');
+const connectDB = require('./config/db');
+
+const PORT = process.env.PORT || 5000;
+
+// Connect to Database
+connectDB();
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+</file>
 
 <file path="index.html">
 <!DOCTYPE html>
@@ -1071,11 +3491,15 @@ document.addEventListener('DOMContentLoaded', () => {
   /* ===== CONTACT FORM ===== */
   const contactForm = document.getElementById('contactForm');
   if (contactForm) {
-    contactForm.addEventListener('submit', e => {
+    contactForm.addEventListener('submit', async e => {
       e.preventDefault();
 
       const firstName = contactForm.querySelector('#firstName').value.trim();
+      const lastName  = contactForm.querySelector('#lastName') ? contactForm.querySelector('#lastName').value.trim() : '';
       const email     = contactForm.querySelector('#email').value.trim();
+      const phone     = contactForm.querySelector('#phone') ? contactForm.querySelector('#phone').value.trim() : '';
+      const clinicName = contactForm.querySelector('#clinicName') ? contactForm.querySelector('#clinicName').value.trim() : '';
+      const roleInClinic = contactForm.querySelector('#role') ? contactForm.querySelector('#role').value.trim() : '';
 
       if (!firstName || !email) {
         showToast('يرجى ملء الاسم الأول والبريد الإلكتروني على الأقل.', 'error');
@@ -1087,22 +3511,36 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const btn = contactForm.querySelector('.btn-submit');
+      const originalText = btn.textContent;
       btn.textContent = 'جارٍ الإرسال...';
       btn.disabled = true;
 
-      setTimeout(() => {
+      try {
+        const response = await fetch('/api/leads', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ firstName, lastName, email, phone, clinicName, roleInClinic })
+        });
+
+        if (!response.ok) {
+          throw new Error('حدث خطأ أثناء إرسال الطلب');
+        }
+
         showToast('تم إرسال طلبك بنجاح! سنتواصل معك قريباً.', 'success');
         contactForm.reset();
-        btn.textContent = 'ابدأ الآن';
+      } catch (error) {
+        showToast(error.message, 'error');
+      } finally {
+        btn.textContent = originalText;
         btn.disabled = false;
-      }, 1200);
+      }
     });
   }
 
   /* ===== LOGIN FORM ===== */
   const loginForm = document.getElementById('loginForm');
   if (loginForm) {
-    loginForm.addEventListener('submit', e => {
+    loginForm.addEventListener('submit', async e => {
       e.preventDefault();
 
       const email    = loginForm.querySelector('#loginEmail').value.trim();
@@ -1118,14 +3556,49 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const btn = loginForm.querySelector('.btn-submit');
+      const originalText = btn.textContent;
       btn.textContent = 'جارٍ الدخول...';
       btn.disabled = true;
 
-      setTimeout(() => {
+      try {
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.message || 'فشل تسجيل الدخول');
+        }
+
+        // Store token
+        localStorage.setItem('token', data.token);
+
         showToast('مرحباً بك في لازورد! جارٍ تحميل لوحة التحكم...', 'success');
-        btn.textContent = 'تسجيل الدخول';
+        
+        // Fetch user data to redirect based on role
+        const meResponse = await fetch('/api/auth/me', {
+          headers: { 'Authorization': `Bearer ${data.token}` }
+        });
+        const meData = await meResponse.json();
+        
+        setTimeout(() => {
+          if (meData?.data?.user?.role === 'admin') {
+             window.location.href = 'admin-dashboard.html';
+          } else if (meData?.data?.user?.role === 'labtech') {
+             window.location.href = 'lab-dashboard.html';
+          } else {
+             window.location.href = 'clinic-dashboard.html';
+          }
+        }, 1400);
+
+      } catch (error) {
+        showToast(error.message, 'error');
+        btn.textContent = originalText;
         btn.disabled = false;
-      }, 1400);
+      }
     });
   }
 
