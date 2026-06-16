@@ -1,0 +1,28 @@
+# مهام المرحلة الثانية: التحسينات والاختبارات لمنصة Lazord
+
+- [x] 1. تحويل FAQ و Blog إلى محتوى ديناميكي
+  - [x] تعديل `learn.html`
+  - [x] إضافة الكود في `learn.js` (أو `script.js`)
+- [x] 2. إشعار المسؤول عند استلام Lead
+  - [x] إضافة `ADMIN_EMAIL` لـ `.env`
+  - [x] تعديل `lead.service.js` لاستخدام `emailService`
+- [x] 3. تطبيق Rate Limiting
+  - [x] `npm install express-rate-limit`
+  - [x] إنشاء `rateLimit.middleware.js`
+  - [x] التطبيق على المسارات في `auth.routes.js`
+- [x] 4. حذف الملفات المرتبطة عند حذف طلب (Case)
+  - [x] تعديل `case.service.js` لاستخدام `fs.rm`
+- [/] 5. نقل JWT إلى HttpOnly Cookie
+  - [x] `npm install cookie-parser`
+  - [/] التعديل في `app.js`
+  - [ ] التعديل في `auth.controller.js` و `auth.middleware.js`
+  - [ ] التعديل في الواجهة الأمامية (`script.js`, `register.js`, Dashboards) لإزالة `localStorage`
+- [ ] 6. إحصائيات ديناميكية (Stats)
+  - [ ] `stats.service.js` و `stats.controller.js` و `stats.routes.js`
+  - [ ] التعديل في الصفحات لعرض الإحصائيات (index, why-lazord, lab-services)
+- [ ] 7. خطة الاختبار
+  - [ ] `npm install -D jest supertest mongodb-memory-server`
+  - [ ] إعداد ملفات الاختبار لـ (Services & APIs)
+  - [ ] تكوين سكربت الاختبار في `package.json`
+- [ ] 8. تحديث التوثيق
+  - [ ] تحديث `README.md`

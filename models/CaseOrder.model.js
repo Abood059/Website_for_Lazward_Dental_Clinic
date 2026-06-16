@@ -40,9 +40,8 @@ const CaseOrderSchema = new mongoose.Schema({
 });
 
 // Update updatedAt field on every save
-CaseOrderSchema.pre('save', function(next) {
+CaseOrderSchema.pre('save', function() {
   this.updatedAt = Date.now();
-  next();
 });
 
 module.exports = mongoose.model('CaseOrder', CaseOrderSchema);

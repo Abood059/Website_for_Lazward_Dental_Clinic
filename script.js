@@ -34,6 +34,32 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  /* ===== FETCH AND DISPLAY DYNAMIC STATS ===== */
+  async function loadStats() {
+    try {
+      const response = await fetch('/api/stats');
+      if (!response.ok) throw new Error('Failed to fetch stats');
+      
+      const data = await response.json();
+      const stats = data.data;
+      
+      // Update stats in DOM
+      const statDelivered = document.getElementById('stat-delivered');
+      const statSaved = document.getElementById('stat-saved');
+      const statRatings = document.getElementById('stat-ratings');
+      
+      if (statDelivered) statDelivered.textContent = stats.deliveredSmiles || '1.5M+';
+      if (statSaved) statSaved.textContent = stats.savedAmount || '$30K';
+      if (statRatings) statRatings.textContent = stats.fiveStarRatings || '50K+';
+    } catch (error) {
+      console.warn('Could not load dynamic stats:', error.message);
+      // Keep default fallback values
+    }
+  }
+  
+  // Load stats when page loads
+  loadStats();
+
   /* ===== NAVBAR SCROLL SHADOW ===== */
   const navbar = document.querySelector('.navbar');
   if (navbar) {
@@ -148,15 +174,13 @@ document.addEventListener('DOMContentLoaded', () => {
           throw new Error(data.message || 'فشل تسجيل الدخول');
         }
 
-        // Store token
-        localStorage.setItem('token', data.token);
+        // Token is now set in HttpOnly cookie
+        // localStorage.setItem('token', data.token);
 
         showToast('مرحباً بك في لازورد! جارٍ تحميل لوحة التحكم...', 'success');
         
         // Fetch user data to redirect based on role
-        const meResponse = await fetch('/api/auth/me', {
-          headers: { 'Authorization': `Bearer ${data.token}` }
-        });
+        const meResponse = await fetch('/api/auth/me');
         const meData = await meResponse.json();
         
         setTimeout(() => {

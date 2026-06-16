@@ -81,8 +81,11 @@
   </div>
 
   <script>
-    const token = localStorage.getItem('token');
-    if (!token) window.location.href = 'login.html';
+    async function checkAuth() {
+      const res = await fetch('/api/auth/me', { credentials: 'include' });
+      if (!res.ok) window.location.href = 'login.html';
+    }
+    checkAuth();
 
     function switchTab(tabId) {
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -93,7 +96,7 @@
 
     // Products
     async function loadProducts() {
-      const res = await fetch('/api/products');
+      const res = await fetch('/api/products', { credentials: 'include' });
       const data = await res.json();
       const tbody = document.querySelector('#productsTable tbody');
       tbody.innerHTML = '';
@@ -123,7 +126,8 @@
       };
       const res = await fetch('/api/products', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(payload)
       });
       if (res.ok) {
@@ -137,14 +141,15 @@
 
     async function deleteProduct(id) {
       if(confirm('هل أنت متأكد؟')) {
-        await fetch(`/api/products/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+        await fetch(`/api/products/${id}`, { method: 'DELETE', credentials: 'include' });
         loadProducts();
       }
     }
 
     // Leads
     async function loadLeads() {
-      const res = await fetch('/api/leads', { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch('/api/leads', { credentials: 'include' });
+      if (res.status === 401) return window.location.href = 'login.html';
       const data = await res.json();
       const tbody = document.querySelector('#leadsTable tbody');
       tbody.innerHTML = '';
@@ -168,14 +173,15 @@
     async function markContacted(id) {
       await fetch(`/api/leads/${id}/contacted`, { 
         method: 'PUT', 
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ contacted: true })
       });
       loadLeads();
     }
 
-    function logout() {
-      localStorage.removeItem('token');
+    async function logout() {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
       window.location.href = 'login.html';
     }
 

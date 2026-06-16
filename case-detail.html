@@ -39,16 +39,18 @@
   </div>
 
   <script>
-    const token = localStorage.getItem('token');
-    if (!token) window.location.href = 'login.html';
+    async function checkAuth() {
+      const res = await fetch('/api/auth/me', { credentials: 'include' });
+      if (!res.ok) window.location.href = 'login.html';
+    }
+    checkAuth();
 
     const urlParams = new URLSearchParams(window.location.search);
     const caseId = urlParams.get('id');
 
     async function loadCase() {
-      const res = await fetch(`/api/cases/${caseId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const res = await fetch(`/api/cases/${caseId}`, { credentials: 'include' });
+      if (res.status === 401) return window.location.href = 'login.html';
       const data = await res.json();
       if (res.ok) {
         const c = data.data.caseOrder;
@@ -93,7 +95,7 @@
 
       const res = await fetch(`/api/cases/${caseId}/files`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
+        credentials: 'include',
         body: formData
       });
 
@@ -108,7 +110,7 @@
     document.getElementById('submitCaseBtn')?.addEventListener('click', async () => {
       const res = await fetch(`/api/cases/${caseId}/submit`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
       if (res.ok) {
         alert('تم الإرسال');
@@ -119,7 +121,7 @@
     document.getElementById('approveDesignBtn')?.addEventListener('click', async () => {
       const res = await fetch(`/api/cases/${caseId}/approve-design`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
       if (res.ok) {
         alert('تم الموافقة على التصميم');

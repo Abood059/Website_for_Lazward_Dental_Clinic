@@ -1,5 +1,7 @@
 const CaseOrder = require('../models/CaseOrder.model');
 const Product = require('../models/Product.model');
+const fs = require('fs');
+const path = require('path');
 
 const createCase = async (clinicId, caseData) => {
   const { productId, notes } = caseData;
@@ -144,6 +146,15 @@ const deleteCase = async (id, user) => {
   if (caseOrder.status !== 'draft') {
     throw new Error('Can only delete cases in draft status');
   }
+
+  const caseId = caseOrder._id.toString();
+  const dirPath = path.join(__dirname, '..', 'uploads', 'cases', caseId);
+
+  fs.rm(dirPath, { recursive: true, force: true }, (err) => {
+    if (err) {
+      console.error('Failed to delete case files:', err);
+    }
+  });
 
   await caseOrder.deleteOne();
   return true;

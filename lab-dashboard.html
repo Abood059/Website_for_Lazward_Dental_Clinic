@@ -39,15 +39,17 @@
   </div>
 
   <script>
-    const token = localStorage.getItem('token');
-    if (!token) window.location.href = 'login.html';
+    async function checkAuth() {
+      const res = await fetch('/api/auth/me', { credentials: 'include' });
+      if (!res.ok) window.location.href = 'login.html';
+    }
+    checkAuth();
 
     const statuses = ['review', 'design', 'approved', 'manufacturing', 'shipped', 'delivered'];
 
     async function loadCases() {
-      const res = await fetch('/api/cases', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const res = await fetch('/api/cases', { credentials: 'include' });
+      if (res.status === 401) return window.location.href = 'login.html';
       const data = await res.json();
       const tbody = document.querySelector('#casesTable tbody');
       tbody.innerHTML = '';
@@ -79,9 +81,9 @@
       const res = await fetch(`/api/cases/${id}/status`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify({ status })
       });
       if (res.ok) {
@@ -92,8 +94,8 @@
       }
     }
 
-    function logout() {
-      localStorage.removeItem('token');
+    async function logout() {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
       window.location.href = 'login.html';
     }
 
