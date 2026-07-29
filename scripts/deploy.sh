@@ -62,12 +62,8 @@ setup_vps_environment() {
             rm get-docker.sh
         fi
         
-        # Install Docker Compose if not installed
-        if ! command -v docker-compose &> /dev/null; then
-            echo "Installing Docker Compose..."
-            sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-            sudo chmod +x /usr/local/bin/docker-compose
-        fi
+        # Docker Compose is now included in Docker (docker compose command)
+        # No separate installation needed
         
         # Create project directory
         mkdir -p ~/lazward-dental-clinic
@@ -172,20 +168,20 @@ deploy_application() {
         cd $PROJECT_DIR
         
         # Stop existing containers
-        docker-compose down || true
+        docker compose down || true
         
         # Build and start containers
-        docker-compose up -d --build
+        docker compose up -d --build
         
         # Wait for containers to be healthy
         echo "Waiting for containers to be healthy..."
         sleep 30
         
         # Check container status
-        docker-compose ps
+        docker compose ps
         
         # Show logs
-        docker-compose logs --tail=50
+        docker compose logs --tail=50
 ENDSSH
 }
 
