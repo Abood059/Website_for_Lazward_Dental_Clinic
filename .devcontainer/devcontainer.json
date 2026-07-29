@@ -1,0 +1,59 @@
+{
+  "name": "Lazward Dental Clinic - Dev Container",
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspace",
+
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20",
+      "nodeGypDependencies": true
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-vscode.vscode-typescript-next",
+        "mongodb.mongodb-vscode",
+        "ms-azuretools.vscode-docker"
+      ],
+      "settings": {
+        "node.js": {
+          "default": "20"
+        },
+        "eslint.format.enable": true,
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+      }
+    }
+  },
+
+  "postCreateCommand": "npm install && npm test",
+
+  "portsAttributes": [
+    {
+      "port": 5000,
+      "label": "Application",
+      "onAutoForward": "notify"
+    },
+    {
+      "port": 27017,
+      "label": "MongoDB",
+      "onAutoForward": "silent"
+    }
+  ],
+
+  "remoteUser": "nodejs",
+
+  "forwardPorts": [5000, 27017],
+
+  "mounts": [
+    "source=${localWorkspaceFolder}/uploads,target=/workspace/uploads,type=bind,consistency=cached"
+  ],
+
+  "shutdownAction": "stopCompose"
+}
